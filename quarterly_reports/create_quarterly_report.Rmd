@@ -246,6 +246,18 @@ bridge <- read_excel(
 ```
 
 
+# 🗑Clean up
+
+Remove file paths
+
+```{r}
+rm(
+  master_log_path, phone_term_path, remote_path, ema_initial_pay_approach_path,
+  ema_15_day_path, arrest_path, bridge_path 
+)
+```
+
+
 # 🚧Data management
 
 ## Master log
@@ -633,6 +645,13 @@ recruitment <- master_log_screened_in %>%
   mutate(
     covid = if_else(date_baseline < "2020-03-17", "pre", "post")
   )
+```
+
+
+# Save data 
+
+```{r}
+
 ```
 
 
