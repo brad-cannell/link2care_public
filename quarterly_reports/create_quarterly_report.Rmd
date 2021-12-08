@@ -97,7 +97,7 @@ cat(
   "columns.\n"
 )
 
-# 2021-11-23: Master log screened in imported with 329 rows and 41 columns.
+# 2021-12-05: Master log screened in imported with 329 rows and 41 columns.
 ```
 
 ## Master log Screened-out
@@ -128,7 +128,7 @@ cat(
   "columns.\n"
 )
 
-# 2021-11-23: Master log screened out imported with 53 rows and 12 columns.
+# 2021-12-05: Master log screened out imported with 53 rows and 12 columns.
 ```
 
 ## Phone terminations
@@ -195,6 +195,7 @@ ema_initial_pay_approach <- read_excel(
 ```
 
 ```{r}
+# Don't worry about warnings converting character zeros to numeric zeros
 ema <- read_excel(
   ema_15_day_path,
   sheet = "15_Day_EMA_Log",
@@ -209,9 +210,6 @@ ema <- read_excel(
 ```
 
 ## Arrests
-
-* Had to remove password from Excel sheet before import. Help -> Passwords -> Delete password.
-* Had to do a little bit of manual removal of text from dates (i.e., "CURRENTLY IN CUSTODY") in the Excel file.
 
 ```{r}
 arrest <- read_excel(
@@ -299,7 +297,15 @@ Recode variables and create factors
 ```{r}
 master_log_combined <- master_log_combined %>%
   mutate(
-    gender_f = factor(gender, c("M", "F", "Other"), c("Male", "Female", "Other")),
+    group_f = factor(
+      group, 
+      c("UCM", "UCM+SP", "L2C")
+    ),
+    gender_f = factor(
+      gender, 
+      c("M", "F", "Other"), 
+      c("Male", "Female", "Other")
+    ),
     race_3cat = case_when(
       is.na(race)  ~ NA_character_,
       race == "AA" ~ "Black or African American",
@@ -310,15 +316,19 @@ master_log_combined <- master_log_combined %>%
       race_3cat,
       c("Black or African American", "White", "Other")
     ),
-    hispanic_f = factor(hispanic, c("N", "Y"), c("Non-Hispanic", "Hispanic"))
+    hispanic_f = factor(
+      hispanic, 
+      c("N", "Y"), 
+      c("Non-Hispanic", "Hispanic")
+    )
   )
 ```
 
 Created new screened-in and screened-out now that we are done with variable cleaning.
 
 ```{r}
-screened_in  <- filter(master_log_combined, screened_in == 1L)
-screened_out <- filter(master_log_combined, screened_in == 0L)
+master_log_screened_in  <- filter(master_log_combined, screened_in == 1L)
+master_log_screened_out <- filter(master_log_combined, screened_in == 0L)
 ```
 
 ## Phone terminations
@@ -475,7 +485,7 @@ Merge L2C group into the arrest data.
 ```{r}
 arrest <- arrest %>% 
   left_join(
-    screened_in %>% 
+    master_log_screened_in %>% 
       select(id, group),
     by = "id"
   ) %>% 
@@ -493,6 +503,11 @@ bridge <- bridge %>%
     date_session = as.numeric(date_session),
     date_session = as.Date(date_session, origin = "1899-12-30")
   )
+
+# Don't worry about
+# Warning: Problem with `mutate()` column `date_session`.
+# ℹ `date_session = as.numeric(date_session)`.
+# ℹ NAs introduced by coercion
 ```
 
 Remove instructions from "notes" column of rows 1 and 2.
@@ -563,7 +578,7 @@ Merge L2C group into the Bridge data.
 ```{r}
 bridge <- bridge %>%
   left_join(
-    screened_in %>% 
+    master_log_screened_in %>% 
       select(id, group),
     by = "id"
   ) %>% 
@@ -648,18 +663,61 @@ recruitment <- master_log_screened_in %>%
 ```
 
 
-# Save data 
+# 📄 Read in Word template
+
+We will build out out the Word report in the analysis section below.
 
 ```{r}
+doc <- read_docx("template_l2c_quarterly_report.docx")
+```
 
+Date the report was updated
+
+```{r}
+today <- format(Sys.Date(), "%B %d, %Y")
+doc <- body_replace_text_at_bkm(doc, "date", today)
 ```
 
 
 # 📈Analysis
 
-## 📌 Note on Table names
+## Study overview
 
-You should probably use descriptive names for these tables instead of numbers. The numbers may change over time. You might also want to organize this Rmd file by sections that match the quarterly report. But maybe not.
+### Key dates
+
+```{r}
+key_dates <- master_log_combined %>% 
+  summarise(
+    date_first_screen = min(date_baseline) %>% as.character(),
+    date_last_screen = max(date_baseline) %>% as.character()
+  )
+```
+
+
+### People screened
+
+```{r}
+screened <- master_log_combined %>% 
+  summarise(
+    n_screened = n(),
+    screened_in = sum(screened_in),
+    screened_out = n_screened - screened_in
+  )
+```
+
+### Participants randomized
+
+```{r}
+randomized <- master_log_screened_in %>% 
+  mutate(
+    group_f = fct_explicit_na(group_f, na_level = "Not Randomized")
+  ) %>% 
+  freq_table(group_f) %>% 
+  freq_format("n (percent)", digits = 1) %>% 
+  select(cat, formatted_stats)
+```
+
+
 
 ## Table 1
 
